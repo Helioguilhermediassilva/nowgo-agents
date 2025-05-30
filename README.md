@@ -8,7 +8,7 @@
 
 ## Sobre o Projeto
 
-NowGo Agents Platform é uma solução completa para criação e gerenciamento de times de agentes autônomos para empresas de médio e grande porte. Baseada no repositório [EvolutionAPI/evo-ai](https://github.com/EvolutionAPI/evo-ai), nossa plataforma adiciona recursos avançados de análise organizacional e geração automática de agentes personalizados.
+NowGo Agents Platform é uma solução completa para criação e gerenciamento de times de agentes autônomos para empresas de médio e grande porte. Nossa plataforma adiciona recursos avançados de análise organizacional e geração automática de agentes personalizados.
 
 ### Principais Recursos
 
@@ -118,7 +118,7 @@ Este projeto está licenciado sob a Licença Apache 2.0 - veja o arquivo LICENSE
 
 ## About the Project
 
-NowGo Agents Platform is a complete solution for creating and managing teams of autonomous agents for medium and large companies. Based on the [EvolutionAPI/evo-ai](https://github.com/EvolutionAPI/evo-ai) repository, our platform adds advanced organizational analysis and automatic generation of customized agents.
+NowGo Agents Platform is a complete solution for creating and managing teams of autonomous agents for medium and large companies. Our platform adds advanced organizational analysis and automatic generation of customized agents.
 
 ### Key Features
 
