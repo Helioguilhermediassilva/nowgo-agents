@@ -1,23 +1,23 @@
 import React from 'react';
-import { useTranslation } from 'next-i18next';
-import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
+import { useTranslations } from 'next-intl';
+import { useTheme } from 'next-themes';
 import { Layout } from '@/components/layout';
 import { AuthForm } from '@/components/auth-form';
+import Head from 'next/head';
 
 export default function LoginPage() {
-  const { t } = useTranslation('common');
-
+  const t = useTranslations('Auth');
+  
   return (
-    <Layout>
-      <AuthForm />
-    </Layout>
+    <>
+      <Head>
+        <title>{t('login.pageTitle')} | NowGo Agents</title>
+        <meta name="description" content={t('login.pageDescription')} />
+      </Head>
+      <AuthForm mode="login" />
+    </>
   );
 }
 
-export async function getStaticProps({ locale }) {
-  return {
-    props: {
-      ...(await serverSideTranslations(locale, ['common'])),
-    },
-  };
-}
+// Desabilita o layout padrão para a página de login
+LoginPage.getLayout = (page) => page;

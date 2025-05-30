@@ -1,258 +1,338 @@
 import React from 'react';
-import { useRouter } from 'next/router';
-import { useQuery } from '@tanstack/react-query';
-import axios from 'axios';
-
-// Componentes UI
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Progress } from '@/components/ui/progress';
+import { useTranslations } from 'next-intl';
+import { useTheme } from 'next-themes';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Button } from '@/components/ui/button';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
+import { Progress } from '@/components/ui/progress';
+import { useRouter } from 'next/router';
+import { useAgents } from '@/hooks/useAgents';
 
 export function AgentDashboard() {
+  const t = useTranslations('AgentDashboard');
+  const { theme } = useTheme();
   const router = useRouter();
-  const [activeTab, setActiveTab] = React.useState("agents");
+  const { agents, isLoading, error } = useAgents();
 
-  // Buscar agentes gerados
-  const { data: agents, isLoading: isLoadingAgents } = useQuery({
-    queryKey: ['agents'],
-    queryFn: async () => {
-      const response = await axios.get('/api/v1/agents');
-      return response.data;
-    }
-  });
-
-  // Buscar trabalhos de geração
-  const { data: generationJobs, isLoading: isLoadingJobs } = useQuery({
-    queryKey: ['generation-jobs'],
-    queryFn: async () => {
-      const response = await axios.get('/api/v1/organization/generation-jobs');
-      return response.data;
-    }
-  });
-
-  // Função para navegar para a página de análise organizacional
-  function goToOrganizationAnalysis() {
-    router.push('/organization-analysis');
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="flex flex-col items-center space-y-4">
+          <div className="w-12 h-12 rounded-full border-4 border-primary border-t-transparent animate-spin"></div>
+          <p className="text-muted-foreground">{t('loading')}</p>
+        </div>
+      </div>
+    );
   }
 
-  // Função para navegar para a página de detalhes do agente
-  function viewAgentDetails(agentId) {
-    router.push(`/agents/${agentId}`);
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="flex flex-col items-center space-y-4">
+          <div className="p-4 bg-red-100 dark:bg-red-900 rounded-full">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-red-600 dark:text-red-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <p className="text-muted-foreground">{t('error')}</p>
+          <Button variant="outline" onClick={() => window.location.reload()}>
+            {t('retry')}
+          </Button>
+        </div>
+      </div>
+    );
   }
+
+  const virginiaAgent = agents.find(agent => agent.name === 'Virginia');
+  const guilhermeAgent = agents.find(agent => agent.name === 'Guilherme');
 
   return (
-    <div className="container mx-auto py-10">
-      <div className="flex justify-between items-center mb-8">
-        <div>
-          <h1 className="text-3xl font-bold">Dashboard</h1>
-          <p className="text-muted-foreground">Gerencie seus agentes autônomos</p>
-        </div>
-        <Button onClick={goToOrganizationAnalysis}>
-          Nova Análise Organizacional
+    <div className="space-y-8 animate-fadeIn">
+      <div className="flex justify-between items-center">
+        <h1 className="text-3xl font-bold">{t('title')}</h1>
+        <Button onClick={() => router.push('/dashboard/new-agent')}>
+          {t('newAgent')}
         </Button>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="agents">Meus Agentes</TabsTrigger>
-          <TabsTrigger value="generation">Geração de Agentes</TabsTrigger>
-          <TabsTrigger value="analytics">Analytics</TabsTrigger>
-        </TabsList>
-        
-        <TabsContent value="agents">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-6">
-            {isLoadingAgents ? (
-              <p>Carregando agentes...</p>
-            ) : agents && agents.length > 0 ? (
-              agents.map((agent) => (
-                <Card key={agent.id} className="overflow-hidden">
-                  <CardHeader className="pb-2">
-                    <div className="flex justify-between items-start">
-                      <CardTitle className="text-xl">{agent.name}</CardTitle>
-                      <Badge variant={agent.is_active ? "default" : "outline"}>
-                        {agent.is_active ? "Ativo" : "Inativo"}
-                      </Badge>
-                    </div>
-                    <CardDescription>{agent.role || "Assistente"}</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-sm text-muted-foreground line-clamp-3 mb-4">
-                      {agent.description || "Sem descrição disponível."}
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      <Badge variant="outline">{agent.type}</Badge>
-                      {agent.config?.channels?.enabled?.map((channel) => (
-                        <Badge key={channel} variant="secondary">{channel}</Badge>
-                      ))}
-                    </div>
-                  </CardContent>
-                  <CardFooter className="bg-muted/50 pt-2">
-                    <Button 
-                      variant="outline" 
-                      className="w-full"
-                      onClick={() => viewAgentDetails(agent.id)}
-                    >
-                      Ver Detalhes
-                    </Button>
-                  </CardFooter>
-                </Card>
-              ))
-            ) : (
-              <div className="col-span-3 text-center py-12">
-                <h3 className="text-lg font-medium mb-2">Nenhum agente encontrado</h3>
-                <p className="text-muted-foreground mb-6">
-                  Você ainda não tem agentes criados. Realize uma análise organizacional para receber recomendações.
-                </p>
-                <Button onClick={goToOrganizationAnalysis}>
-                  Iniciar Análise Organizacional
-                </Button>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Cartão de métricas gerais */}
+        <Card>
+          <CardHeader>
+            <CardTitle>{t('metrics.title')}</CardTitle>
+            <CardDescription>{t('metrics.description')}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <p className="text-sm text-muted-foreground">{t('metrics.totalInteractions')}</p>
+                <p className="text-2xl font-bold">1,248</p>
+                <Badge variant="outline" className="bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-300">
+                  +12.5%
+                </Badge>
               </div>
-            )}
-          </div>
-        </TabsContent>
-        
-        <TabsContent value="generation">
+              <div className="space-y-2">
+                <p className="text-sm text-muted-foreground">{t('metrics.satisfactionRate')}</p>
+                <p className="text-2xl font-bold">94.7%</p>
+                <Badge variant="outline" className="bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-300">
+                  +2.3%
+                </Badge>
+              </div>
+              <div className="space-y-2">
+                <p className="text-sm text-muted-foreground">{t('metrics.leadsGenerated')}</p>
+                <p className="text-2xl font-bold">87</p>
+                <Badge variant="outline" className="bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-300">
+                  +15.8%
+                </Badge>
+              </div>
+              <div className="space-y-2">
+                <p className="text-sm text-muted-foreground">{t('metrics.salesCompleted')}</p>
+                <p className="text-2xl font-bold">32</p>
+                <Badge variant="outline" className="bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-300">
+                  +8.2%
+                </Badge>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Cartão de status dos agentes */}
+        <Card>
+          <CardHeader>
+            <CardTitle>{t('status.title')}</CardTitle>
+            <CardDescription>{t('status.description')}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-4">
+                  <Avatar className="h-10 w-10 border-2 border-green-500">
+                    <AvatarImage src="/images/virginia-avatar.png" alt="Virginia" />
+                    <AvatarFallback>VA</AvatarFallback>
+                  </Avatar>
+                  <div>
+                    <p className="font-medium">Virginia</p>
+                    <p className="text-sm text-muted-foreground">{t('status.customerSupport')}</p>
+                  </div>
+                </div>
+                <Badge className="bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-300">
+                  {t('status.online')}
+                </Badge>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-4">
+                  <Avatar className="h-10 w-10 border-2 border-green-500">
+                    <AvatarImage src="/images/guilherme-avatar.png" alt="Guilherme" />
+                    <AvatarFallback>GU</AvatarFallback>
+                  </Avatar>
+                  <div>
+                    <p className="font-medium">Guilherme</p>
+                    <p className="text-sm text-muted-foreground">{t('status.salesAgent')}</p>
+                  </div>
+                </div>
+                <Badge className="bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-300">
+                  {t('status.online')}
+                </Badge>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Tabs defaultValue="virginia" className="w-full">
+        <TabsList className="grid grid-cols-2 mb-8">
+          <TabsTrigger value="virginia">{t('agents.virginia.name')}</TabsTrigger>
+          <TabsTrigger value="guilherme">{t('agents.guilherme.name')}</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="virginia" className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Trabalhos de Geração de Agentes</CardTitle>
-              <CardDescription>
-                Acompanhe o status dos seus trabalhos de geração de agentes
-              </CardDescription>
+              <div className="flex items-center space-x-4">
+                <Avatar className="h-12 w-12 border-2 border-primary">
+                  <AvatarImage src="/images/virginia-avatar.png" alt="Virginia" />
+                  <AvatarFallback>VA</AvatarFallback>
+                </Avatar>
+                <div>
+                  <CardTitle>{t('agents.virginia.name')}</CardTitle>
+                  <CardDescription>{t('agents.virginia.description')}</CardDescription>
+                </div>
+              </div>
             </CardHeader>
             <CardContent>
-              {isLoadingJobs ? (
-                <p>Carregando trabalhos...</p>
-              ) : generationJobs && generationJobs.length > 0 ? (
-                <div className="space-y-6">
-                  {generationJobs.map((job) => (
-                    <div key={job.job_id} className="border rounded-lg p-4">
-                      <div className="flex justify-between items-start mb-2">
-                        <div>
-                          <h3 className="font-medium">Trabalho #{job.job_id.substring(0, 8)}</h3>
-                          <p className="text-sm text-muted-foreground">
-                            Criado em: {new Date(job.created_at).toLocaleString()}
-                          </p>
-                        </div>
-                        <Badge
-                          variant={
-                            job.status === "completed" ? "default" :
-                            job.status === "failed" ? "destructive" :
-                            "outline"
-                          }
-                        >
-                          {job.status === "completed" ? "Concluído" :
-                           job.status === "failed" ? "Falhou" :
-                           job.status === "in_progress" ? "Em Progresso" :
-                           "Pendente"}
-                        </Badge>
-                      </div>
-                      
-                      {job.status === "in_progress" && (
-                        <div className="mb-2">
-                          <Progress value={job.progress} className="h-2" />
-                          <p className="text-xs text-right mt-1">{job.progress}%</p>
-                        </div>
-                      )}
-                      
-                      {job.status === "completed" && (
-                        <div className="mt-4">
-                          <p className="text-sm">
-                            <span className="font-medium">Agentes gerados:</span> {job.agent_count}
-                          </p>
-                          {job.completed_at && (
-                            <p className="text-sm">
-                              <span className="font-medium">Concluído em:</span> {new Date(job.completed_at).toLocaleString()}
-                            </p>
-                          )}
-                        </div>
-                      )}
-                      
-                      {job.status === "failed" && (
-                        <div className="mt-4">
-                          <p className="text-sm text-destructive">
-                            <span className="font-medium">Erro:</span> {job.error || "Erro desconhecido"}
-                          </p>
-                        </div>
-                      )}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  <h3 className="font-medium">{t('agents.performance')}</h3>
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <p className="text-sm">{t('agents.metrics.responseTime')}</p>
+                      <p className="text-sm font-medium">28s</p>
                     </div>
-                  ))}
+                    <Progress value={85} className="h-2" />
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <p className="text-sm">{t('agents.metrics.resolutionRate')}</p>
+                      <p className="text-sm font-medium">92%</p>
+                    </div>
+                    <Progress value={92} className="h-2" />
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <p className="text-sm">{t('agents.metrics.customerSatisfaction')}</p>
+                      <p className="text-sm font-medium">96%</p>
+                    </div>
+                    <Progress value={96} className="h-2" />
+                  </div>
                 </div>
-              ) : (
-                <div className="text-center py-12">
-                  <h3 className="text-lg font-medium mb-2">Nenhum trabalho encontrado</h3>
-                  <p className="text-muted-foreground mb-6">
-                    Você ainda não iniciou nenhum trabalho de geração de agentes.
-                  </p>
-                  <Button onClick={goToOrganizationAnalysis}>
-                    Iniciar Análise Organizacional
-                  </Button>
+
+                <div className="space-y-4">
+                  <h3 className="font-medium">{t('agents.channels')}</h3>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="flex items-center space-x-2">
+                      <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                      <p className="text-sm">WhatsApp</p>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                      <p className="text-sm">Email</p>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                      <p className="text-sm">{t('agents.channels.phone')}</p>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <div className="w-3 h-3 rounded-full bg-gray-300 dark:bg-gray-600"></div>
+                      <p className="text-sm">LinkedIn</p>
+                    </div>
+                  </div>
+
+                  <h3 className="font-medium mt-6">{t('agents.languages')}</h3>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="flex items-center space-x-2">
+                      <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                      <p className="text-sm">{t('agents.languages.portuguese')}</p>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                      <p className="text-sm">{t('agents.languages.english')}</p>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                      <p className="text-sm">{t('agents.languages.spanish')}</p>
+                    </div>
+                  </div>
                 </div>
-              )}
+              </div>
+
+              <div className="flex justify-end mt-6 space-x-2">
+                <Button variant="outline" onClick={() => router.push(`/dashboard/agents/virginia/edit`)}>
+                  {t('agents.actions.edit')}
+                </Button>
+                <Button variant="outline" onClick={() => router.push(`/dashboard/agents/virginia/conversations`)}>
+                  {t('agents.actions.viewConversations')}
+                </Button>
+                <Button onClick={() => router.push(`/dashboard/agents/virginia/analytics`)}>
+                  {t('agents.actions.analytics')}
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
-        
-        <TabsContent value="analytics">
+
+        <TabsContent value="guilherme" className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Analytics</CardTitle>
-              <CardDescription>
-                Visualize métricas e desempenho dos seus agentes
-              </CardDescription>
+              <div className="flex items-center space-x-4">
+                <Avatar className="h-12 w-12 border-2 border-primary">
+                  <AvatarImage src="/images/guilherme-avatar.png" alt="Guilherme" />
+                  <AvatarFallback>GU</AvatarFallback>
+                </Avatar>
+                <div>
+                  <CardTitle>{t('agents.guilherme.name')}</CardTitle>
+                  <CardDescription>{t('agents.guilherme.description')}</CardDescription>
+                </div>
+              </div>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium">Total de Agentes</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold">
-                      {agents?.length || 0}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  <h3 className="font-medium">{t('agents.performance')}</h3>
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <p className="text-sm">{t('agents.metrics.leadsGenerated')}</p>
+                      <p className="text-sm font-medium">87</p>
                     </div>
-                  </CardContent>
-                </Card>
-                
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium">Agentes Ativos</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold">
-                      {agents?.filter(a => a.is_active)?.length || 0}
+                    <Progress value={78} className="h-2" />
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <p className="text-sm">{t('agents.metrics.meetingsScheduled')}</p>
+                      <p className="text-sm font-medium">42</p>
                     </div>
-                  </CardContent>
-                </Card>
-                
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium">Trabalhos de Geração</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold">
-                      {generationJobs?.length || 0}
+                    <Progress value={84} className="h-2" />
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <p className="text-sm">{t('agents.metrics.salesCompleted')}</p>
+                      <p className="text-sm font-medium">32</p>
                     </div>
-                  </CardContent>
-                </Card>
+                    <Progress value={88} className="h-2" />
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <h3 className="font-medium">{t('agents.channels')}</h3>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="flex items-center space-x-2">
+                      <div className="w-3 h-3 rounded-full bg-gray-300 dark:bg-gray-600"></div>
+                      <p className="text-sm">WhatsApp</p>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                      <p className="text-sm">Email</p>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                      <p className="text-sm">{t('agents.channels.phone')}</p>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                      <p className="text-sm">LinkedIn</p>
+                    </div>
+                  </div>
+
+                  <h3 className="font-medium mt-6">{t('agents.languages')}</h3>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="flex items-center space-x-2">
+                      <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                      <p className="text-sm">{t('agents.languages.portuguese')}</p>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                      <p className="text-sm">{t('agents.languages.english')}</p>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                      <p className="text-sm">{t('agents.languages.spanish')}</p>
+                    </div>
+                  </div>
+                </div>
               </div>
-              
-              <Separator className="my-6" />
-              
-              <div className="text-center py-12">
-                <h3 className="text-lg font-medium mb-2">Analytics em Desenvolvimento</h3>
-                <p className="text-muted-foreground">
-                  Métricas detalhadas e visualizações estarão disponíveis em breve.
-                </p>
+
+              <div className="flex justify-end mt-6 space-x-2">
+                <Button variant="outline" onClick={() => router.push(`/dashboard/agents/guilherme/edit`)}>
+                  {t('agents.actions.edit')}
+                </Button>
+                <Button variant="outline" onClick={() => router.push(`/dashboard/agents/guilherme/conversations`)}>
+                  {t('agents.actions.viewConversations')}
+                </Button>
+                <Button onClick={() => router.push(`/dashboard/agents/guilherme/analytics`)}>
+                  {t('agents.actions.analytics')}
+                </Button>
               </div>
             </CardContent>
           </Card>

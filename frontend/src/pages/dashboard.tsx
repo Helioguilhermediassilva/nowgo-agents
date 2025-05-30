@@ -1,33 +1,23 @@
 import React from 'react';
-import { useTranslation } from 'next-i18next';
-import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
+import { useTranslations } from 'next-intl';
+import { useTheme } from 'next-themes';
 import { Layout } from '@/components/layout';
 import { AgentDashboard } from '@/components/agent-dashboard';
-import { useRouter } from 'next/router';
+import Head from 'next/head';
 
 export default function DashboardPage() {
-  const { t } = useTranslation('common');
-  const router = useRouter();
+  const t = useTranslations('Dashboard');
   
-  // Verificar autenticação
-  React.useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (!token) {
-      router.push('/login');
-    }
-  }, [router]);
-
   return (
-    <Layout>
+    <>
+      <Head>
+        <title>{t('pageTitle')} | NowGo Agents</title>
+        <meta name="description" content={t('pageDescription')} />
+      </Head>
       <AgentDashboard />
-    </Layout>
+    </>
   );
 }
 
-export async function getStaticProps({ locale }) {
-  return {
-    props: {
-      ...(await serverSideTranslations(locale, ['common'])),
-    },
-  };
-}
+// Usa o layout padrão para a página de dashboard
+DashboardPage.getLayout = (page) => <Layout>{page}</Layout>;

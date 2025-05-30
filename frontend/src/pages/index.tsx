@@ -1,153 +1,146 @@
 import React from 'react';
-import { useTranslation } from 'next-i18next';
-import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
+import { useTranslations } from 'next-intl';
+import { useTheme } from 'next-themes';
 import { Layout } from '@/components/layout';
-import { useRouter } from 'next/router';
-
-// Componentes UI
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import Head from 'next/head';
 import { Button } from '@/components/ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import Link from 'next/link';
 
 export default function HomePage() {
-  const { t } = useTranslation('common');
-  const router = useRouter();
-
+  const t = useTranslations('Home');
+  const { theme } = useTheme();
+  
   return (
-    <Layout>
-      <div className="container mx-auto py-10">
-        <div className="flex flex-col items-center text-center mb-12">
-          <h1 className="text-4xl font-bold mb-4">NowGo Agents Platform</h1>
-          <p className="text-xl text-muted-foreground max-w-3xl">
-            Plataforma multi-tenant para geração automática de agentes autônomos personalizados para qualquer empresa
+    <>
+      <Head>
+        <title>NowGo Agents | {t('pageTitle')}</title>
+        <meta name="description" content={t('pageDescription')} />
+      </Head>
+      
+      <div className="flex flex-col items-center justify-center space-y-12 text-center py-12">
+        <div className="space-y-6 max-w-3xl">
+          <h1 className="text-4xl font-bold tracking-tighter sm:text-5xl md:text-6xl">
+            {t('hero.title')}
+          </h1>
+          <p className="text-lg text-muted-foreground md:text-xl">
+            {t('hero.description')}
           </p>
-          <div className="flex gap-4 mt-8">
-            <Button size="lg" onClick={() => router.push('/login')}>
-              Começar Agora
+          <div className="flex flex-col sm:flex-row justify-center gap-4">
+            <Button size="lg" asChild>
+              <Link href="/organization-analysis">
+                {t('hero.primaryButton')}
+              </Link>
             </Button>
-            <Button size="lg" variant="outline" onClick={() => router.push('/about')}>
-              Saiba Mais
+            <Button size="lg" variant="outline" asChild>
+              <Link href="/login">
+                {t('hero.secondaryButton')}
+              </Link>
             </Button>
           </div>
         </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-16">
+        
+        <div className="w-full max-w-5xl">
+          <img 
+            src="/images/dashboard-preview.png" 
+            alt="NowGo Agents Dashboard" 
+            className="w-full rounded-lg border shadow-lg"
+            onError={(e) => {
+              e.target.onerror = null;
+              e.target.src = theme === 'dark' 
+                ? '/images/dashboard-placeholder-dark.svg' 
+                : '/images/dashboard-placeholder-light.svg';
+            }}
+          />
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full max-w-5xl">
           <Card>
             <CardHeader>
-              <CardTitle>Análise Organizacional</CardTitle>
-              <CardDescription>
-                Entenda as necessidades específicas da sua empresa
-              </CardDescription>
+              <CardTitle>{t('features.analysis.title')}</CardTitle>
+              <CardDescription>{t('features.analysis.description')}</CardDescription>
             </CardHeader>
             <CardContent>
-              <p className="text-muted-foreground">
-                Nossa plataforma analisa o perfil da sua organização para recomendar os agentes mais adequados para suas necessidades específicas.
-              </p>
+              <div className="h-32 flex items-center justify-center rounded-md bg-muted">
+                <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-primary">
+                  <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
+                  <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
+                </svg>
+              </div>
             </CardContent>
             <CardFooter>
-              <Button variant="ghost" className="w-full" onClick={() => router.push('/login')}>
-                Iniciar Análise
+              <Button variant="ghost" className="w-full" asChild>
+                <Link href="/organization-analysis">
+                  {t('features.analysis.button')}
+                </Link>
               </Button>
             </CardFooter>
           </Card>
-
+          
           <Card>
             <CardHeader>
-              <CardTitle>Geração Automática</CardTitle>
-              <CardDescription>
-                Crie agentes personalizados com um clique
-              </CardDescription>
+              <CardTitle>{t('features.agents.title')}</CardTitle>
+              <CardDescription>{t('features.agents.description')}</CardDescription>
             </CardHeader>
             <CardContent>
-              <p className="text-muted-foreground">
-                Após a análise, nosso sistema gera automaticamente agentes personalizados para atender às necessidades específicas da sua empresa.
-              </p>
+              <div className="h-32 flex items-center justify-center rounded-md bg-muted">
+                <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-primary">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <circle cx="12" cy="10" r="3"></circle>
+                  <path d="M7 20.662V19a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v1.662"></path>
+                </svg>
+              </div>
             </CardContent>
             <CardFooter>
-              <Button variant="ghost" className="w-full" onClick={() => router.push('/login')}>
-                Gerar Agentes
+              <Button variant="ghost" className="w-full" asChild>
+                <Link href="/dashboard/agents">
+                  {t('features.agents.button')}
+                </Link>
               </Button>
             </CardFooter>
           </Card>
-
+          
           <Card>
             <CardHeader>
-              <CardTitle>Integração Multi-Canal</CardTitle>
-              <CardDescription>
-                Conecte seus agentes a múltiplos canais de comunicação
-              </CardDescription>
+              <CardTitle>{t('features.channels.title')}</CardTitle>
+              <CardDescription>{t('features.channels.description')}</CardDescription>
             </CardHeader>
             <CardContent>
-              <p className="text-muted-foreground">
-                Integre seus agentes com WhatsApp, Email, Telefone, LinkedIn e outros canais para uma experiência omnichannel completa.
-              </p>
+              <div className="h-32 flex items-center justify-center rounded-md bg-muted">
+                <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-primary">
+                  <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path>
+                  <polyline points="14 2 14 8 20 8"></polyline>
+                  <line x1="16" x2="8" y1="13" y2="13"></line>
+                  <line x1="16" x2="8" y1="17" y2="17"></line>
+                  <line x1="10" x2="8" y1="9" y2="9"></line>
+                </svg>
+              </div>
             </CardContent>
             <CardFooter>
-              <Button variant="ghost" className="w-full" onClick={() => router.push('/login')}>
-                Configurar Integrações
+              <Button variant="ghost" className="w-full" asChild>
+                <Link href="/dashboard/integrations">
+                  {t('features.channels.button')}
+                </Link>
               </Button>
             </CardFooter>
           </Card>
         </div>
-
-        <div className="mb-16">
-          <h2 className="text-3xl font-bold text-center mb-8">Como Funciona</h2>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-            <div className="flex flex-col items-center text-center">
-              <div className="w-12 h-12 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xl font-bold mb-4">1</div>
-              <h3 className="text-xl font-medium mb-2">Análise</h3>
-              <p className="text-muted-foreground">Preencha o perfil da sua organização para análise personalizada</p>
-            </div>
-            
-            <div className="flex flex-col items-center text-center">
-              <div className="w-12 h-12 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xl font-bold mb-4">2</div>
-              <h3 className="text-xl font-medium mb-2">Recomendação</h3>
-              <p className="text-muted-foreground">Receba recomendações de agentes específicos para suas necessidades</p>
-            </div>
-            
-            <div className="flex flex-col items-center text-center">
-              <div className="w-12 h-12 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xl font-bold mb-4">3</div>
-              <h3 className="text-xl font-medium mb-2">Geração</h3>
-              <p className="text-muted-foreground">Gere automaticamente os agentes selecionados com um clique</p>
-            </div>
-            
-            <div className="flex flex-col items-center text-center">
-              <div className="w-12 h-12 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xl font-bold mb-4">4</div>
-              <h3 className="text-xl font-medium mb-2">Integração</h3>
-              <p className="text-muted-foreground">Configure integrações com seus canais e sistemas existentes</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-muted p-8 rounded-lg">
-          <div className="text-center mb-8">
-            <h2 className="text-3xl font-bold mb-4">Pronto para começar?</h2>
-            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-              Crie sua conta agora e comece a construir seu time de agentes autônomos em minutos.
-            </p>
-          </div>
-          <div className="flex justify-center">
-            <Button size="lg" onClick={() => router.push('/login')}>
-              Criar Conta Gratuita
-            </Button>
-          </div>
+        
+        <div className="space-y-4 max-w-3xl">
+          <h2 className="text-3xl font-bold tracking-tighter">{t('cta.title')}</h2>
+          <p className="text-lg text-muted-foreground">
+            {t('cta.description')}
+          </p>
+          <Button size="lg" asChild>
+            <Link href="/organization-analysis">
+              {t('cta.button')}
+            </Link>
+          </Button>
         </div>
       </div>
-    </Layout>
+    </>
   );
 }
 
-export async function getStaticProps({ locale }) {
-  return {
-    props: {
-      ...(await serverSideTranslations(locale, ['common'])),
-    },
-  };
-}
+// Usa o layout padrão para a página inicial
+HomePage.getLayout = (page) => <Layout>{page}</Layout>;

@@ -1,419 +1,350 @@
 """
-┌──────────────────────────────────────────────────────────────────────────────┐
-│ @author: NowGo Holding                                                       │
-│ @file: agent_generator.py                                                    │
-│ Developed by: NowGo Holding AI Team                                          │
-│ Creation date: May 30, 2025                                                  │
-│ Contact: ai@nowgo.holding                                                    │
-├──────────────────────────────────────────────────────────────────────────────┤
-│ @copyright © NowGo Holding 2025. All rights reserved.                        │
-│ Licensed under the Apache License, Version 2.0                               │
-└──────────────────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ Serviço de Geração Automática de Agentes                                    │
+│                                                                             │
+│ Este serviço implementa a geração automática de agentes personalizados      │
+│ com base nos resultados da análise organizacional.                          │
+└─────────────────────────────────────────────────────────────────────────────┘
 """
 
-from sqlalchemy.orm import Session
-from src.models.models import Agent, AgentFolder, Client
-from src.models.organization_analyzer import (
-    OrganizationProfile, 
-    AgentTemplate, 
-    AgentGenerationJob,
-    IndustryType,
-    CompanySize
-)
-from typing import List, Dict, Any, Optional, Union
-import uuid
-import logging
+from typing import Dict, List, Any, Optional
 import json
-import asyncio
 from datetime import datetime
+import uuid
 
-logger = logging.getLogger(__name__)
+from src.models.models import Agent, AgentConfiguration, Organization, OrganizationAnalysis
+from src.models.organization_analyzer import OrganizationAnalyzer
+from src.services.adk.agent_builder import AgentBuilder
+from src.services.adk.custom_agents.llm_agent import LLMAgent
+from src.services.adk.custom_agents.workflow_agent import WorkflowAgent
 
 class AgentGenerator:
     """
-    Responsible for analyzing organization profiles and automatically
-    generating appropriate agents based on templates and business needs.
+    Gerador automático de agentes personalizados com base em análise organizacional.
+    
+    Esta classe implementa a lógica para:
+    1. Interpretar resultados de análise organizacional
+    2. Gerar configurações de agentes personalizados
+    3. Criar e configurar instâncias de agentes
+    4. Registrar agentes no sistema
     """
     
-    def __init__(self, db: Session):
-        self.db = db
-    
-    async def analyze_organization(self, organization_profile_id: Union[uuid.UUID, str]) -> Dict[str, Any]:
+    def __init__(self, db_session):
         """
-        Analyzes an organization profile and recommends appropriate agent templates.
+        Inicializa o gerador de agentes.
         
         Args:
-            organization_profile_id: UUID of the organization profile to analyze
-            
-        Returns:
-            Dictionary with analysis results including recommended agent templates
+            db_session: Sessão do banco de dados para persistência
         """
-        # Convert string ID to UUID if needed
-        if isinstance(organization_profile_id, str):
-            organization_profile_id = uuid.UUID(organization_profile_id)
+        self.db_session = db_session
+        self.agent_builder = AgentBuilder()
+        
+        # Templates de prompts para diferentes tipos de agentes
+        self.prompt_templates = {
+            "customer_support": """
+            Você é Virginia, uma assistente virtual de atendimento ao cliente da {organization_name}.
             
-        # Get the organization profile
-        profile = self.db.query(OrganizationProfile).filter(
-            OrganizationProfile.id == organization_profile_id
-        ).first()
-        
-        if not profile:
-            logger.error(f"Organization profile not found: {organization_profile_id}")
-            return {"error": "Organization profile not found"}
-        
-        # Get all active templates
-        templates = self.db.query(AgentTemplate).filter(
-            AgentTemplate.is_active == True
-        ).all()
-        
-        # Filter templates based on industry match or null industry (applicable to all)
-        matching_templates = []
-        for template in templates:
-            if template.industry is None or template.industry == profile.industry:
-                matching_templates.append(template)
-        
-        # Further filter based on department needs
-        recommended_templates = []
-        
-        # Check sales department
-        if profile.has_sales_team:
-            sales_templates = [t for t in matching_templates if t.department == "sales"]
-            recommended_templates.extend(sales_templates)
+            Seu objetivo é fornecer suporte excepcional aos clientes, respondendo dúvidas, 
+            resolvendo problemas e garantindo uma experiência positiva.
             
-        # Check customer service department
-        if profile.has_customer_service:
-            cs_templates = [t for t in matching_templates if t.department == "customer_service"]
-            recommended_templates.extend(cs_templates)
+            Informações sobre a empresa:
+            - Nome: {organization_name}
+            - Setor: {industry}
+            - Descrição: {description}
             
-        # Check marketing department
-        if profile.has_marketing:
-            marketing_templates = [t for t in matching_templates if t.department == "marketing"]
-            recommended_templates.extend(marketing_templates)
+            Diretrizes de comunicação:
+            - Seja sempre cordial e profissional
+            - Responda de forma clara e objetiva
+            - Demonstre empatia com os problemas dos clientes
+            - Ofereça soluções práticas e eficientes
+            - Escale para um humano quando necessário
             
-        # Check HR department
-        if profile.has_hr:
-            hr_templates = [t for t in matching_templates if t.department == "hr"]
-            recommended_templates.extend(hr_templates)
+            Idiomas suportados: {languages}
+            """,
             
-        # Check finance department
-        if profile.has_finance:
-            finance_templates = [t for t in matching_templates if t.department == "finance"]
-            recommended_templates.extend(finance_templates)
+            "sales": """
+            Você é Guilherme, um assistente virtual de vendas e prospecção da {organization_name}.
             
-        # Check operations department
-        if profile.has_operations:
-            operations_templates = [t for t in matching_templates if t.department == "operations"]
-            recommended_templates.extend(operations_templates)
-        
-        # Convert templates to dictionary format
-        recommended_template_dicts = [template.to_dict() for template in recommended_templates]
-        
-        # Update the organization profile with recommendations
-        profile.recommended_agents = recommended_template_dicts
-        profile.analysis_complete = True
-        profile.updated_at = datetime.now()
-        
-        self.db.commit()
-        
-        return {
-            "organization_id": str(profile.id),
-            "analysis_complete": True,
-            "recommended_templates": recommended_template_dicts,
-            "template_count": len(recommended_template_dicts)
+            Seu objetivo é identificar oportunidades de negócio, qualificar leads e agendar 
+            reuniões com a equipe comercial, sempre de forma amigável e persuasiva, mas leve.
+            
+            Informações sobre a empresa:
+            - Nome: {organization_name}
+            - Setor: {industry}
+            - Descrição: {description}
+            
+            Diretrizes de comunicação:
+            - Seja amigável e construa rapport rapidamente
+            - Identifique necessidades e dores do cliente
+            - Apresente soluções de forma persuasiva
+            - Destaque benefícios e não apenas características
+            - Conduza o cliente para o próximo passo do funil
+            - Agende reuniões com a equipe comercial quando apropriado
+            
+            Idiomas suportados: {languages}
+            """,
+            
+            "marketing": """
+            Você é Amanda, uma assistente virtual de marketing da {organization_name}.
+            
+            Seu objetivo é engajar leads, nutrir relacionamentos e converter prospects 
+            em clientes através de comunicação personalizada e relevante.
+            
+            Informações sobre a empresa:
+            - Nome: {organization_name}
+            - Setor: {industry}
+            - Descrição: {description}
+            
+            Diretrizes de comunicação:
+            - Personalize mensagens com base no perfil do contato
+            - Forneça conteúdo relevante e de valor
+            - Mantenha tom consistente com a marca
+            - Identifique sinais de interesse para qualificação
+            - Encaminhe leads qualificados para a equipe de vendas
+            
+            Idiomas suportados: {languages}
+            """,
+            
+            "finance": """
+            Você é Ricardo, um assistente virtual financeiro da {organization_name}.
+            
+            Seu objetivo é fornecer análises financeiras, relatórios e insights 
+            para apoiar decisões estratégicas da empresa.
+            
+            Informações sobre a empresa:
+            - Nome: {organization_name}
+            - Setor: {industry}
+            - Descrição: {description}
+            
+            Diretrizes de comunicação:
+            - Seja preciso e objetivo nas análises
+            - Apresente dados de forma clara e estruturada
+            - Destaque tendências e anomalias relevantes
+            - Sugira ações baseadas em dados
+            - Mantenha confidencialidade das informações
+            
+            Idiomas suportados: {languages}
+            """,
+            
+            "hr": """
+            Você é Helena, uma assistente virtual de recursos humanos da {organization_name}.
+            
+            Seu objetivo é otimizar processos de recrutamento, seleção e onboarding,
+            além de fornecer suporte aos colaboradores em questões de RH.
+            
+            Informações sobre a empresa:
+            - Nome: {organization_name}
+            - Setor: {industry}
+            - Descrição: {description}
+            
+            Diretrizes de comunicação:
+            - Seja acolhedora e empática
+            - Forneça informações precisas sobre políticas e benefícios
+            - Conduza triagens iniciais de candidatos
+            - Agende entrevistas e acompanhe processos seletivos
+            - Apoie novos colaboradores no processo de onboarding
+            
+            Idiomas suportados: {languages}
+            """
         }
     
-    async def create_generation_job(
-        self, 
-        client_id: Union[uuid.UUID, str],
-        organization_profile_id: Union[uuid.UUID, str],
-        selected_template_ids: List[Union[uuid.UUID, str]]
-    ) -> Dict[str, Any]:
+    def generate_agents_from_analysis(self, analysis_id: int, tenant_id: int, user_id: int) -> List[Dict[str, Any]]:
         """
-        Creates a new agent generation job.
+        Gera agentes personalizados com base nos resultados de uma análise organizacional.
         
         Args:
-            client_id: UUID of the client
-            organization_profile_id: UUID of the organization profile
-            selected_template_ids: List of template IDs to generate agents from
+            analysis_id: ID da análise organizacional
+            tenant_id: ID do tenant para isolamento multi-tenant
+            user_id: ID do usuário que solicitou a geração
             
         Returns:
-            Dictionary with job details
+            Lista de agentes gerados com seus IDs e configurações
         """
-        # Convert string IDs to UUIDs if needed
-        if isinstance(client_id, str):
-            client_id = uuid.UUID(client_id)
-            
-        if isinstance(organization_profile_id, str):
-            organization_profile_id = uuid.UUID(organization_profile_id)
-            
-        # Validate client exists
-        client = self.db.query(Client).filter(Client.id == client_id).first()
-        if not client:
-            logger.error(f"Client not found: {client_id}")
-            return {"error": "Client not found"}
-        
-        # Validate organization profile exists
-        profile = self.db.query(OrganizationProfile).filter(
-            OrganizationProfile.id == organization_profile_id,
-            OrganizationProfile.client_id == client_id
+        # Buscar análise no banco de dados
+        analysis = self.db_session.query(OrganizationAnalysis).filter(
+            OrganizationAnalysis.id == analysis_id,
+            OrganizationAnalysis.tenant_id == tenant_id
         ).first()
         
-        if not profile:
-            logger.error(f"Organization profile not found: {organization_profile_id}")
-            return {"error": "Organization profile not found"}
+        if not analysis:
+            raise ValueError(f"Análise com ID {analysis_id} não encontrada")
         
-        # Validate templates exist
-        template_ids = []
-        for template_id in selected_template_ids:
-            if isinstance(template_id, str):
-                template_id = uuid.UUID(template_id)
-            template_ids.append(template_id)
-            
-            template = self.db.query(AgentTemplate).filter(
-                AgentTemplate.id == template_id,
-                AgentTemplate.is_active == True
-            ).first()
-            
-            if not template:
-                logger.error(f"Template not found or inactive: {template_id}")
-                return {"error": f"Template not found or inactive: {template_id}"}
+        # Buscar organização associada à análise
+        organization = self.db_session.query(Organization).filter(
+            Organization.id == analysis.organization_id
+        ).first()
         
-        # Create the job
-        job = AgentGenerationJob(
-            client_id=client_id,
-            organization_profile_id=organization_profile_id,
-            selected_templates=[str(tid) for tid in template_ids],
-            status="pending",
-            progress=0
+        if not organization:
+            raise ValueError(f"Organização associada à análise {analysis_id} não encontrada")
+        
+        # Extrair agentes recomendados da análise
+        recommended_agents = analysis.results.get("recommendedAgents", [])
+        if not recommended_agents:
+            raise ValueError(f"Nenhum agente recomendado encontrado na análise {analysis_id}")
+        
+        # Gerar agentes com base nas recomendações
+        generated_agents = []
+        
+        for agent_rec in recommended_agents:
+            agent_id = agent_rec.get("id")
+            agent_type = agent_rec.get("type")
+            agent_name = agent_rec.get("name")
+            
+            # Preparar dados para o prompt
+            prompt_data = {
+                "organization_name": organization.name,
+                "industry": organization.industry,
+                "description": organization.description,
+                "languages": ", ".join([
+                    lang for lang, enabled in analysis.results.get("summary", {}).get("languages", {}).items()
+                    if enabled
+                ])
+            }
+            
+            # Obter template de prompt para o tipo de agente
+            prompt_template = self.prompt_templates.get(agent_type)
+            if not prompt_template:
+                # Usar template genérico se não houver específico
+                prompt_template = f"Você é {agent_name}, um assistente virtual da {organization.name}."
+            
+            # Formatar prompt com dados da organização
+            prompt = prompt_template.format(**prompt_data)
+            
+            # Configurar canais de comunicação
+            channels = {}
+            for channel, enabled in analysis.results.get("summary", {}).get("channels", {}).items():
+                if enabled:
+                    channels[channel] = {
+                        "enabled": True,
+                        "configuration": self._get_default_channel_config(channel)
+                    }
+            
+            # Criar configuração do agente
+            agent_config = {
+                "name": agent_name,
+                "description": agent_rec.get("description", ""),
+                "type": agent_type,
+                "model": "gpt-4",  # Modelo padrão
+                "prompt": prompt,
+                "channels": channels,
+                "languages": {
+                    lang: {"enabled": True}
+                    for lang, enabled in analysis.results.get("summary", {}).get("languages", {}).items()
+                    if enabled
+                },
+                "integrations": {
+                    integration: {"enabled": True}
+                    for integration, enabled in analysis.results.get("summary", {}).get("integrations", {}).items()
+                    if enabled
+                },
+                "metadata": {
+                    "generated_from_analysis": analysis_id,
+                    "confidence_score": agent_rec.get("confidence", 0),
+                    "generation_date": datetime.now().isoformat()
+                }
+            }
+            
+            # Criar agente no banco de dados
+            agent = Agent(
+                name=agent_name,
+                description=agent_rec.get("description", ""),
+                type=agent_type,
+                tenant_id=tenant_id,
+                created_by=user_id,
+                folder_id=None  # Pasta padrão
+            )
+            self.db_session.add(agent)
+            self.db_session.flush()  # Obter ID do agente
+            
+            # Criar configuração do agente no banco de dados
+            agent_configuration = AgentConfiguration(
+                agent_id=agent.id,
+                configuration=agent_config,
+                version=1,
+                is_active=True
+            )
+            self.db_session.add(agent_configuration)
+            
+            # Criar instância do agente usando o AgentBuilder
+            agent_instance = self._create_agent_instance(agent.id, agent_type, agent_config)
+            
+            # Adicionar à lista de agentes gerados
+            generated_agents.append({
+                "id": agent.id,
+                "name": agent_name,
+                "type": agent_type,
+                "description": agent_rec.get("description", ""),
+                "configuration": agent_config
+            })
+        
+        # Persistir mudanças no banco de dados
+        self.db_session.commit()
+        
+        return generated_agents
+    
+    def _create_agent_instance(self, agent_id: int, agent_type: str, config: Dict[str, Any]) -> Any:
+        """
+        Cria uma instância do agente com base no tipo e configuração.
+        
+        Args:
+            agent_id: ID do agente
+            agent_type: Tipo do agente
+            config: Configuração do agente
+            
+        Returns:
+            Instância do agente criado
+        """
+        # Mapear tipos de agentes para classes de implementação
+        agent_type_mapping = {
+            "customer_support": LLMAgent,
+            "sales": LLMAgent,
+            "marketing": LLMAgent,
+            "finance": LLMAgent,
+            "hr": LLMAgent
+        }
+        
+        # Obter classe de implementação para o tipo de agente
+        agent_class = agent_type_mapping.get(agent_type, LLMAgent)
+        
+        # Criar instância do agente
+        agent_instance = self.agent_builder.build_agent(
+            agent_id=str(agent_id),
+            agent_type=agent_class.__name__,
+            config=config
         )
         
-        self.db.add(job)
-        self.db.commit()
+        return agent_instance
+    
+    def _get_default_channel_config(self, channel: str) -> Dict[str, Any]:
+        """
+        Retorna configuração padrão para um canal de comunicação.
         
-        # Return job details
-        return {
-            "job_id": str(job.id),
-            "status": job.status,
-            "template_count": len(template_ids),
-            "created_at": job.created_at.isoformat() if job.created_at else None
+        Args:
+            channel: Nome do canal
+            
+        Returns:
+            Configuração padrão para o canal
+        """
+        # Configurações padrão por canal
+        default_configs = {
+            "whatsapp": {
+                "greeting": "Olá! Sou o assistente virtual da {organization_name}. Como posso ajudar?",
+                "signature": "Atenciosamente, {agent_name} - {organization_name}",
+                "working_hours": "24/7"
+            },
+            "email": {
+                "greeting": "Prezado(a),\n\nSou o assistente virtual da {organization_name}.",
+                "signature": "Atenciosamente,\n{agent_name}\n{organization_name}",
+                "subject_template": "[{organization_name}] - {subject}"
+            },
+            "phone": {
+                "greeting": "Olá, você está falando com {agent_name} da {organization_name}. Como posso ajudar?",
+                "voicemail": "Obrigado por sua ligação. Por favor, deixe uma mensagem após o sinal."
+            },
+            "linkedin": {
+                "greeting": "Olá! Sou {agent_name}, assistente virtual da {organization_name}.",
+                "connection_message": "Olá! Gostaria de conectar para discutir como a {organization_name} pode ajudar em seus desafios."
+            }
         }
-    
-    async def process_generation_job(self, job_id: Union[uuid.UUID, str]) -> Dict[str, Any]:
-        """
-        Processes an agent generation job, creating agents based on templates.
         
-        Args:
-            job_id: UUID of the job to process
-            
-        Returns:
-            Dictionary with job results
-        """
-        # Convert string ID to UUID if needed
-        if isinstance(job_id, str):
-            job_id = uuid.UUID(job_id)
-            
-        # Get the job
-        job = self.db.query(AgentGenerationJob).filter(
-            AgentGenerationJob.id == job_id
-        ).first()
-        
-        if not job:
-            logger.error(f"Job not found: {job_id}")
-            return {"error": "Job not found"}
-        
-        # Update job status
-        job.status = "in_progress"
-        job.progress = 10
-        self.db.commit()
-        
-        try:
-            # Get the organization profile
-            profile = self.db.query(OrganizationProfile).filter(
-                OrganizationProfile.id == job.organization_profile_id
-            ).first()
-            
-            if not profile:
-                raise ValueError(f"Organization profile not found: {job.organization_profile_id}")
-            
-            # Get the client
-            client = self.db.query(Client).filter(
-                Client.id == job.client_id
-            ).first()
-            
-            if not client:
-                raise ValueError(f"Client not found: {job.client_id}")
-            
-            # Create a folder for the generated agents
-            folder_name = f"{client.name} - Auto-generated Agents"
-            folder = self.db.query(AgentFolder).filter(
-                AgentFolder.client_id == job.client_id,
-                AgentFolder.name == folder_name
-            ).first()
-            
-            if not folder:
-                folder = AgentFolder(
-                    client_id=job.client_id,
-                    name=folder_name,
-                    description="Automatically generated agents based on organization profile"
-                )
-                self.db.add(folder)
-                self.db.commit()
-            
-            # Update progress
-            job.progress = 20
-            self.db.commit()
-            
-            # Process each template
-            generated_agent_ids = []
-            template_count = len(job.selected_templates)
-            
-            for i, template_id_str in enumerate(job.selected_templates):
-                template_id = uuid.UUID(template_id_str)
-                
-                # Get the template
-                template = self.db.query(AgentTemplate).filter(
-                    AgentTemplate.id == template_id
-                ).first()
-                
-                if not template:
-                    logger.warning(f"Template not found: {template_id}")
-                    continue
-                
-                # Generate the agent
-                agent_id = await self._generate_agent_from_template(
-                    client_id=job.client_id,
-                    folder_id=folder.id,
-                    template=template,
-                    profile=profile
-                )
-                
-                if agent_id:
-                    generated_agent_ids.append(str(agent_id))
-                
-                # Update progress
-                progress_increment = 70 / template_count
-                job.progress = 20 + int((i + 1) * progress_increment)
-                self.db.commit()
-            
-            # Update job status
-            job.status = "completed"
-            job.progress = 100
-            job.generated_agents = generated_agent_ids
-            job.completed_at = datetime.now()
-            self.db.commit()
-            
-            return {
-                "job_id": str(job.id),
-                "status": job.status,
-                "generated_agents": generated_agent_ids,
-                "agent_count": len(generated_agent_ids),
-                "completed_at": job.completed_at.isoformat() if job.completed_at else None
-            }
-            
-        except Exception as e:
-            logger.error(f"Error processing job {job_id}: {str(e)}")
-            
-            # Update job status
-            job.status = "failed"
-            job.error_message = str(e)
-            self.db.commit()
-            
-            return {
-                "job_id": str(job.id),
-                "status": job.status,
-                "error": str(e)
-            }
-    
-    async def _generate_agent_from_template(
-        self,
-        client_id: uuid.UUID,
-        folder_id: uuid.UUID,
-        template: AgentTemplate,
-        profile: OrganizationProfile
-    ) -> Optional[uuid.UUID]:
-        """
-        Generates an agent from a template, customized for the organization profile.
-        
-        Args:
-            client_id: UUID of the client
-            folder_id: UUID of the folder to place the agent in
-            template: The agent template to use
-            profile: The organization profile to customize for
-            
-        Returns:
-            UUID of the generated agent, or None if generation failed
-        """
-        try:
-            # Customize the instruction based on organization profile
-            instruction = template.base_instruction
-            
-            # Replace placeholders in the instruction
-            instruction = instruction.replace("{INDUSTRY}", profile.industry.value)
-            instruction = instruction.replace("{COMPANY_SIZE}", profile.company_size.value)
-            instruction = instruction.replace("{PRIMARY_LANGUAGE}", profile.primary_language)
-            
-            if profile.crm_system:
-                instruction = instruction.replace("{CRM_SYSTEM}", profile.crm_system)
-            else:
-                instruction = instruction.replace("{CRM_SYSTEM}", "generic CRM")
-                
-            # Customize config based on organization profile
-            config = template.config_template.copy()
-            
-            # Add communication channels
-            channels = []
-            if profile.uses_whatsapp:
-                channels.append("whatsapp")
-            if profile.uses_email:
-                channels.append("email")
-            if profile.uses_phone:
-                channels.append("phone")
-            if profile.uses_linkedin:
-                channels.append("linkedin")
-            if profile.uses_instagram:
-                channels.append("instagram")
-            if profile.uses_facebook:
-                channels.append("facebook")
-            if profile.uses_twitter:
-                channels.append("twitter")
-            if profile.uses_telegram:
-                channels.append("telegram")
-                
-            if "channels" not in config:
-                config["channels"] = {}
-            
-            config["channels"]["enabled"] = channels
-            
-            # Add languages
-            languages = [profile.primary_language]
-            if profile.secondary_languages:
-                languages.extend(profile.secondary_languages)
-                
-            if "languages" not in config:
-                config["languages"] = {}
-                
-            config["languages"]["primary"] = profile.primary_language
-            config["languages"]["supported"] = languages
-            
-            # Create the agent
-            agent_name = f"{template.name} - {profile.industry.value.capitalize()}"
-            
-            agent = Agent(
-                client_id=client_id,
-                name=agent_name,
-                role=template.department.capitalize() if template.department else "Assistant",
-                description=template.description,
-                type=template.agent_type,
-                instruction=instruction,
-                folder_id=folder_id,
-                config=config
-            )
-            
-            self.db.add(agent)
-            self.db.commit()
-            
-            return agent.id
-            
-        except Exception as e:
-            logger.error(f"Error generating agent from template: {str(e)}")
-            return None
+        return default_configs.get(channel, {})

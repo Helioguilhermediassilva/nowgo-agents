@@ -1,236 +1,158 @@
 """
-┌──────────────────────────────────────────────────────────────────────────────┐
-│ @author: NowGo Holding                                                       │
-│ @file: integration_routes.py                                                 │
-│ Developed by: NowGo Holding AI Team                                          │
-│ Creation date: May 30, 2025                                                  │
-│ Contact: ai@nowgo.holding                                                    │
-├──────────────────────────────────────────────────────────────────────────────┤
-│ @copyright © NowGo Holding 2025. All rights reserved.                        │
-│ Licensed under the Apache License, Version 2.0                               │
-└──────────────────────────────────────────────────────────────────────────────┘
+Rotas de API para integrações com canais de comunicação
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from typing import Dict, Any, List, Optional
+from typing import List, Dict, Any
 
 from src.config.database import get_db
-from src.services.auth_service import get_current_user
-from src.services.channel_integration import ChannelIntegration
-from pydantic import BaseModel
 
-router = APIRouter(prefix="/api/v1/integrations", tags=["Channel Integrations"])
+router = APIRouter()
 
-# Schema models for request validation
-class WhatsAppConfig(BaseModel):
-    api_key: str
-    phone_number_id: str
-    webhook_url: str
-
-class EmailConfig(BaseModel):
-    smtp_server: str
-    smtp_port: int
-    username: str
-    password: str
-    from_email: str
-
-class LinkedInConfig(BaseModel):
-    client_id: str
-    client_secret: str
-    redirect_uri: str
-    access_token: str
-
-class PhoneConfig(BaseModel):
-    provider: str
-    api_key: str
-    phone_numbers: List[str]
-
-class CRMConfig(BaseModel):
-    crm_type: str
-    api_key: str
-    base_url: str
-
-class MessageRequest(BaseModel):
-    channel: str
-    recipient: str
-    message: str
-    metadata: Optional[Dict[str, Any]] = None
-
-# Routes for channel integrations
-@router.post("/whatsapp", response_model=Dict[str, Any])
-async def setup_whatsapp(
-    config: WhatsAppConfig,
-    db: Session = Depends(get_db),
-    current_user = Depends(get_current_user)
+@router.post("/channels/", status_code=status.HTTP_201_CREATED)
+def create_channel_integration(
+    client_id: int,
+    channel_type: str,
+    configuration: Dict[str, Any],
+    db: Session = Depends(get_db)
 ):
     """
-    Set up WhatsApp integration for the current client
+    Cria uma nova integração de canal de comunicação.
     """
-    if not current_user.client_id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="User is not associated with a client"
-        )
+    from src.models.models import ChannelIntegration
     
-    channel_integration = ChannelIntegration(db)
-    result = await channel_integration.setup_whatsapp_integration(
-        client_id=current_user.client_id,
-        config=config.dict()
+    # Criar nova integração
+    integration = ChannelIntegration(
+        client_id=client_id,
+        channel_type=channel_type,
+        configuration=configuration
     )
     
-    if not result.get("success", False):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=result.get("error", "Failed to set up WhatsApp integration")
-        )
+    db.add(integration)
+    db.commit()
+    db.refresh(integration)
+    
+    return {
+        "message": "Integração de canal criada com sucesso",
+        "integration_id": integration.id
+    }
+
+@router.get("/channels/client/{client_id}", response_model=List[Dict[str, Any]])
+def get_client_integrations(
+    client_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    Obtém todas as integrações de canais para um cliente.
+    """
+    from src.models.models import ChannelIntegration
+    
+    integrations = db.query(ChannelIntegration).filter(
+        ChannelIntegration.client_id == client_id
+    ).all()
+    
+    result = []
+    for integration in integrations:
+        result.append({
+            "id": integration.id,
+            "client_id": integration.client_id,
+            "channel_type": integration.channel_type,
+            "configuration": integration.configuration,
+            "active": integration.active,
+            "created_at": integration.created_at,
+            "updated_at": integration.updated_at
+        })
     
     return result
 
-@router.post("/email", response_model=Dict[str, Any])
-async def setup_email(
-    config: EmailConfig,
-    db: Session = Depends(get_db),
-    current_user = Depends(get_current_user)
+@router.post("/agents/{agent_id}/channels/{channel_id}", status_code=status.HTTP_201_CREATED)
+def link_agent_to_channel(
+    agent_id: int,
+    channel_id: int,
+    configuration: Dict[str, Any],
+    db: Session = Depends(get_db)
 ):
     """
-    Set up Email integration for the current client
+    Vincula um agente a um canal de comunicação.
     """
-    if not current_user.client_id:
+    from src.models.models import Agent, ChannelIntegration, AgentChannelIntegration
+    
+    # Verificar se o agente existe
+    agent = db.query(Agent).filter(Agent.id == agent_id).first()
+    if not agent:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="User is not associated with a client"
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Agente não encontrado"
         )
     
-    channel_integration = ChannelIntegration(db)
-    result = await channel_integration.setup_email_integration(
-        client_id=current_user.client_id,
-        config=config.dict()
+    # Verificar se o canal existe
+    channel = db.query(ChannelIntegration).filter(ChannelIntegration.id == channel_id).first()
+    if not channel:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Canal de integração não encontrado"
+        )
+    
+    # Verificar se já existe vínculo
+    existing_link = db.query(AgentChannelIntegration).filter(
+        AgentChannelIntegration.agent_id == agent_id,
+        AgentChannelIntegration.channel_integration_id == channel_id
+    ).first()
+    
+    if existing_link:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Agente já está vinculado a este canal"
+        )
+    
+    # Criar vínculo
+    link = AgentChannelIntegration(
+        agent_id=agent_id,
+        channel_integration_id=channel_id,
+        configuration=configuration
     )
     
-    if not result.get("success", False):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=result.get("error", "Failed to set up Email integration")
-        )
+    db.add(link)
+    db.commit()
+    db.refresh(link)
     
-    return result
+    return {
+        "message": "Agente vinculado ao canal com sucesso",
+        "link_id": link.id
+    }
 
-@router.post("/linkedin", response_model=Dict[str, Any])
-async def setup_linkedin(
-    config: LinkedInConfig,
-    db: Session = Depends(get_db),
-    current_user = Depends(get_current_user)
+@router.get("/agents/{agent_id}/channels", response_model=List[Dict[str, Any]])
+def get_agent_channels(
+    agent_id: int,
+    db: Session = Depends(get_db)
 ):
     """
-    Set up LinkedIn integration for the current client
+    Obtém todos os canais vinculados a um agente.
     """
-    if not current_user.client_id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="User is not associated with a client"
-        )
+    from src.models.models import AgentChannelIntegration, ChannelIntegration
     
-    channel_integration = ChannelIntegration(db)
-    result = await channel_integration.setup_linkedin_integration(
-        client_id=current_user.client_id,
-        config=config.dict()
-    )
+    # Buscar vínculos do agente
+    links = db.query(AgentChannelIntegration).filter(
+        AgentChannelIntegration.agent_id == agent_id
+    ).all()
     
-    if not result.get("success", False):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=result.get("error", "Failed to set up LinkedIn integration")
-        )
-    
-    return result
-
-@router.post("/phone", response_model=Dict[str, Any])
-async def setup_phone(
-    config: PhoneConfig,
-    db: Session = Depends(get_db),
-    current_user = Depends(get_current_user)
-):
-    """
-    Set up Phone integration for the current client
-    """
-    if not current_user.client_id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="User is not associated with a client"
-        )
-    
-    channel_integration = ChannelIntegration(db)
-    result = await channel_integration.setup_phone_integration(
-        client_id=current_user.client_id,
-        config=config.dict()
-    )
-    
-    if not result.get("success", False):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=result.get("error", "Failed to set up Phone integration")
-        )
-    
-    return result
-
-@router.post("/crm", response_model=Dict[str, Any])
-async def setup_crm(
-    config: CRMConfig,
-    db: Session = Depends(get_db),
-    current_user = Depends(get_current_user)
-):
-    """
-    Set up CRM integration for the current client
-    """
-    if not current_user.client_id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="User is not associated with a client"
-        )
-    
-    channel_integration = ChannelIntegration(db)
-    result = await channel_integration.setup_crm_integration(
-        client_id=current_user.client_id,
-        config=config.dict()
-    )
-    
-    if not result.get("success", False):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=result.get("error", "Failed to set up CRM integration")
-        )
-    
-    return result
-
-@router.post("/send-message", response_model=Dict[str, Any])
-async def send_message(
-    message_request: MessageRequest,
-    db: Session = Depends(get_db),
-    current_user = Depends(get_current_user)
-):
-    """
-    Send a message through a specific channel
-    """
-    if not current_user.client_id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="User is not associated with a client"
-        )
-    
-    channel_integration = ChannelIntegration(db)
-    result = await channel_integration.send_message(
-        client_id=current_user.client_id,
-        channel=message_request.channel,
-        recipient=message_request.recipient,
-        message=message_request.message,
-        metadata=message_request.metadata
-    )
-    
-    if not result.get("success", False):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=result.get("error", f"Failed to send message via {message_request.channel}")
-        )
+    result = []
+    for link in links:
+        # Buscar informações do canal
+        channel = db.query(ChannelIntegration).filter(
+            ChannelIntegration.id == link.channel_integration_id
+        ).first()
+        
+        if channel:
+            result.append({
+                "link_id": link.id,
+                "channel_id": channel.id,
+                "channel_type": channel.channel_type,
+                "configuration": link.configuration,
+                "active": link.active,
+                "created_at": link.created_at,
+                "updated_at": link.updated_at
+            })
     
     return result

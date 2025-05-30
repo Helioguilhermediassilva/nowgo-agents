@@ -1,36 +1,24 @@
-"""
-┌──────────────────────────────────────────────────────────────────────────────┐
-│ @author: NowGo Holding                                                       │
-│ @file: database.py                                                           │
-│ Developed by: NowGo Holding AI Team                                          │
-│ Creation date: May 30, 2025                                                  │
-│ Contact: ai@nowgo.holding                                                    │
-├──────────────────────────────────────────────────────────────────────────────┤
-│ @copyright © NowGo Holding 2025. All rights reserved.                        │
-│ Licensed under the Apache License, Version 2.0                               │
-└──────────────────────────────────────────────────────────────────────────────┘
-"""
-
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, Column, Integer, String, ForeignKey, Boolean, DateTime, Text, JSON
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import relationship, sessionmaker
+from sqlalchemy.sql import func
 import os
+from dotenv import load_dotenv
 
-# Database URL from environment variable or default to SQLite
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./nowgo_agents.db")
+# Carregar variáveis de ambiente
+load_dotenv()
 
-# Create engine
-engine = create_engine(
-    DATABASE_URL, connect_args={"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
-)
+# Configuração da conexão com o banco de dados
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localhost/nowgo_agents")
 
-# Create session factory
+# Criar engine do SQLAlchemy
+engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-# Create base class for models
+# Criar base declarativa
 Base = declarative_base()
 
-# Dependency to get database session
+# Função para obter sessão do banco de dados
 def get_db():
     db = SessionLocal()
     try:

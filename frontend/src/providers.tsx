@@ -1,22 +1,29 @@
 import React from 'react';
 import { ThemeProvider } from 'next-themes';
+import { NextIntlClientProvider } from 'next-intl';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { Toaster } from 'sonner';
+import { Toaster } from '@/components/ui/toaster';
 
-// Criando o cliente de consulta para React Query
-const queryClient = new QueryClient();
+// Criação do cliente de consulta React Query
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false,
+      retry: 1,
+      staleTime: 5 * 60 * 1000, // 5 minutos
+    },
+  },
+});
 
-export interface ProvidersProps {
-  children: React.ReactNode;
-}
-
-export function Providers({ children }: ProvidersProps) {
+export function Providers({ children, locale, messages }) {
   return (
-    <QueryClientProvider client={queryClient}>
-      <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
-        <Toaster position="top-right" />
-        {children}
-      </ThemeProvider>
-    </QueryClientProvider>
+    <NextIntlClientProvider locale={locale} messages={messages}>
+      <QueryClientProvider client={queryClient}>
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+          {children}
+          <Toaster />
+        </ThemeProvider>
+      </QueryClientProvider>
+    </NextIntlClientProvider>
   );
 }
